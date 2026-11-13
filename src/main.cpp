@@ -1,8 +1,11 @@
 #include <iostream>
+
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <cstdio>
 
 int main(){
     
@@ -13,7 +16,7 @@ int main(){
             return 1;
         }
 
-        std::cout << "Socket created: " << socket_fd << '\n';
+        std::cout << "Socket created, FD: " << socket_fd << '\n';
 
         sockaddr_in server_address{};
 
@@ -50,10 +53,53 @@ int main(){
         }
 
         std::cout << "Client connected! FD: "
-          << client_fd << '\n';
+                << client_fd << '\n';
+
+        char buffer[1024];
+
+        ssize_t bytes_received = recv(
+            client_fd,
+            buffer,
+            sizeof(buffer) - 1,
+            0
+        );
+
+        if (bytes_received == -1) {
+            std::perror("recv");
+            close(client_fd);
+            close(socket_fd);
+            return 1;
+        }
+        else if (bytes_received == 0) {
+            std::cout << "Client disconnected.\n";
+        }
+        else {
+            buffer[bytes_received] = '\0';
+
+            std::cout << "Received "
+                    << bytes_received
+                    << " bytes: "
+                    << buffer << '\n';
+        }
+
+        const char response[] = "Hello from TinyHTTP!\n";
+
+        ssize_t bytes_sent = send(client_fd, response, sizeof(response) - 1, 0);
+
+        if(bytes_sent == -1){
+            std::perror("send");
+            close(client_fd);
+            close(socket_fd);
+            return 1;
+        }
+        else if (bytes_sent == 0) {
+            std::cout << "No bytes were sent\n";
+        }
+        else{
+            std::cout<<"Sent "<< bytes_sent <<" bytes\n";
+        }
 
         std::cout<<"Closing server...\n";
-
         close(client_fd);
         close(socket_fd);
 
