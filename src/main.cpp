@@ -6,6 +6,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <cstdio>
+#include <string>
 
 int main(){
     
@@ -55,32 +56,51 @@ int main(){
         std::cout << "Client connected! FD: "
                 << client_fd << '\n';
 
-        char buffer[1024];
+        std::string request;
+        char chunk[256];
 
-        ssize_t bytes_received = recv(
-            client_fd,
-            buffer,
-            sizeof(buffer) - 1,
-            0
-        );
+        constexpr std::size_t max_request_size = 4096;
 
-        if (bytes_received == -1) {
-            std::perror("recv");
-            close(client_fd);
-            close(socket_fd);
-            return 1;
-        }
-        else if (bytes_received == 0) {
-            std::cout << "Client disconnected.\n";
-        }
-        else {
-            buffer[bytes_received] = '\0';
+        while (request.find('\n') == std::string::npos) {
 
-            std::cout << "Received "
-                    << bytes_received
-                    << " bytes: "
-                    << buffer << '\n';
+            if (request.size() == max_request_size) {
+                std::cerr << "Request too large.\n";
+                close(client_fd);
+                close(socket_fd);
+                return 1;
+            }
+
+            std::size_t remaining = max_request_size - request.size();
+
+            std::size_t capacity =
+                remaining < sizeof(chunk) ? remaining : sizeof(chunk);
+
+            ssize_t more_bytes_received = recv(
+                client_fd,
+                chunk,
+                capacity,
+                0
+            );
+
+            if (more_bytes_received == -1) {
+                std::perror("recv");
+                close(client_fd);
+                close(socket_fd);
+                return 1;
+            }
+            else if (more_bytes_received == 0) {
+                std::cout << "Client disconnected.\n";
+                break;
+            }
+            else {
+                request.append(
+                    chunk,
+                    static_cast<std::size_t>(more_bytes_received)
+                );
+            }
         }
+
+        std::cout << "Received request: " << request << '\n';
 
         const char response[] = "Hello from TinyHTTP!\n";
 
