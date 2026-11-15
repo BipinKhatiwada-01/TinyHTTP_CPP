@@ -47,6 +47,34 @@ In our current receiving exercise, we use a newline (`\n`) as a simple delimiter
 
 This is a teaching exercise for understanding TCP stream handling. It is **not** HTTP message framing. HTTP has its own rules for identifying message boundaries, which we will study when we reach HTTP parsing.
 
+## 5. Experiment: observing multiple `recv()` calls
+
+We tested whether one logical request could arrive at the server across more than one receiving operation.
+
+The client was instructed to send the request in two writes, with a one-second pause between them:
+
+```bash
+{ printf 'Hello '; sleep 1; printf 'TinyHTTP!\n'; } | ncat 127.0.0.1 8080
+```
+
+The server logged:
+
+```text
+recv() returned 6 bytes. Total accumulated: 6 bytes
+recv() returned 10 bytes. Total accumulated: 16 bytes
+Received request: Hello TinyHTTP!
+```
+
+The first read supplied `Hello ` (6 bytes). The server appended those bytes to its `request` string, checked for the newline delimiter, and found that the request was not complete. It then called `recv()` again. The second read supplied `TinyHTTP!\n` (10 bytes), bringing the accumulated total to 16 bytes. This time the newline was present, so the loop ended.
+
+This experiment demonstrated that our application can accumulate one logical message across multiple `recv()` calls. It also illustrated that a blocking `recv()` does not wait for its entire buffer to fill: it can return after some data becomes available.
+
+### Important qualification
+
+The experiment produced two reads, but this is not a guarantee that separate client writes become separate server reads. TCP does not preserve write boundaries. Even if a client sends all 16 bytes in one `send()` call, the server may receive them in one `recv()` call or in several. Conversely, data from multiple writes may be returned together by one `recv()`.
+
+The delimiter—not the number of reads or writes—is what tells our current application-level exercise that the request is complete.
+
 ## Key takeaways
 
 - TCP provides a reliable, ordered byte stream.
