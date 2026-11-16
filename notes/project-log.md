@@ -1,4 +1,4 @@
-# TinyHTTP_CPP — Project Log
+# TinyHTTP — Project Log
 
 This log records meaningful project milestones and experiments. It is not intended to be a line-by-line diary.
 
@@ -80,6 +80,26 @@ The current implementation is still an educational newline-framed TCP server, no
 - Each iteration starts at `response + total_sent` and requests `response_size - total_sent` bytes.
 - A positive result advances the counter; `-1` is treated as an error; `0` is treated as no progress so the loop cannot spin forever.
 - Tested the normal request-response exchange successfully. The small response was transmitted successfully, but the test did not force a partial positive return from `send()`.
+
+## Learning checkpoint: HTTP/1.1 fundamentals
+
+**Status:** Studied and documented; not implemented
+
+Created [HTTP/1.1 Fundamentals](http/http-fundamentals.md) to consolidate the first HTTP lessons. Topics covered:
+
+- HTTP as an application-layer protocol layered over TCP for HTTP/1.1.
+- Request-line structure: method, request target, and HTTP version.
+- Common method semantics, including safe and idempotent properties.
+- Request-target forms, with origin-form selected as the initial TinyHTTP scope.
+- Header fields, common headers (`Host`, `Content-Type`, `Content-Length`, `Accept`, and `User-Agent`), and case-insensitive field names.
+- CRLF line endings and `\r\n\r\n` as the end-of-header-section delimiter.
+- Request body framing with `Content-Length` and chunked transfer coding.
+- The risks of conflicting `Content-Length` and `Transfer-Encoding` framing.
+- Separation between socket receiving, HTTP parsing, and application routing.
+
+The next implementation step is to evolve the current newline-based TCP receiver to collect an HTTP/1.1 request head. Body framing will be addressed as a separate step after request-line and header parsing are understood.
+
+**Example correction:** The body `{"name":"Karl","age":21}` is 24 bytes, not 26. The HTTP note uses the corrected `Content-Length: 24`.
 
 ## Working principle
 
