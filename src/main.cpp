@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <iostream>
 
 #include <sys/socket.h>
@@ -61,7 +62,8 @@ int main(){
 
         constexpr std::size_t max_request_size = 4096;
 
-        while (request.find('\n') == std::string::npos) {
+        while (request.find("\r\n\r\n") == std::string::npos) {
+
 
             if (request.size() == max_request_size) {
                 std::cerr << "Request too large.\n";
@@ -107,6 +109,54 @@ int main(){
                 << request.size() << " bytes\n";
             }
         }
+        
+        std::size_t request_line_end = request.find("\r\n");
+
+        if (request_line_end == std::string::npos) {
+            std::cerr << "Invalid request: missing request line terminator.\n";
+            close(client_fd);
+            close(socket_fd);
+            return 1;
+        }
+
+        std::string request_line = request.substr(0, request_line_end);
+
+        std::cout << "Request line: " << request_line << '\n';
+
+        // Find the first space
+        std::size_t first_space = request_line.find(' ');
+
+        if (first_space == std::string::npos) {
+            std::cerr << "Invalid request line: missing first separator.\n";
+            close(client_fd);
+            close(socket_fd);
+            return 1;
+        }
+
+        // Find the second space
+        std::size_t second_space = request_line.find(' ', first_space + 1);
+
+        if (second_space == std::string::npos) {
+            std::cerr << "Invalid request line: missing second separator.\n";
+            close(client_fd);
+            close(socket_fd);
+            return 1;
+        }
+
+        // Extract the three components
+        std::string request_method = request_line.substr(0, first_space);
+
+        std::string request_target = request_line.substr(
+            first_space + 1,
+            second_space - first_space - 1
+        );
+
+        std::string http_version = request_line.substr(second_space + 1);
+
+        // Display the results
+        std::cout << "Request Method: " << request_method << '\n';
+        std::cout << "Request Target: " << request_target << '\n';
+        std::cout << "HTTP Version: " << http_version << '\n';
 
         std::cout << "Received request: " << request << '\n';
 
