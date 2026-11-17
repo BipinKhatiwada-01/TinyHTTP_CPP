@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstddef>
 #include <cstdio>
 #include <iostream>
@@ -240,6 +241,15 @@ int main() {
     std::string content_length_value;
     bool content_length_found = false;
 
+    std::size_t expected_body_size = 0;
+
+    for (const auto& header : headers) {
+        if (header.first == "Transfer-Encoding") {
+            std::cout<<"Chunked Decoding not yet implemented\n";
+            return 1;
+        }
+    }
+
     for (const auto& header : headers) {
         if (header.first == "Content-Length") {
             content_length_value = header.second;
@@ -248,39 +258,76 @@ int main() {
         }
     }
 
-    if (!content_length_found) {
-        std::cerr << "Content-Length header not found.\n";
-        close(client_fd);
-        close(socket_fd);
-        return 1;
-    }
-
     // 14. Convert Content-Length from a string to an integer.
     int integer_content_length = 0;
 
-    try {
-        integer_content_length = std::stoi(content_length_value);
-    }
-    catch (const std::invalid_argument& error) {
-        std::cerr << "Invalid Content-Length: " << error.what() << '\n';
-        close(client_fd);
-        close(socket_fd);
-        return 1;
-    }
-    catch (const std::out_of_range& error) {
-        std::cerr << "Content-Length is out of range: " << error.what() << '\n';
-        close(client_fd);
-        close(socket_fd);
-        return 1;
+    if (content_length_found) {
+        try {
+            integer_content_length = std::stoi(content_length_value);
+            expected_body_size = integer_content_length;
+        }
+        catch (const std::invalid_argument& error) {
+            std::cerr << "Invalid Content-Length: " << error.what() << '\n';
+            close(client_fd);
+            close(socket_fd);
+            return 1;
+        }
+        catch (const std::out_of_range& error) {
+            std::cerr << "Content-Length is out of range: " << error.what() << '\n';
+            close(client_fd);
+            close(socket_fd);
+            return 1;
+        }   
     }
 
-    std::cout << "Content-Length: " << integer_content_length << '\n';
+    std::cout << "Expected body size: " << expected_body_size << '\n';
 
     // 15. Extract the body bytes that have already been received.
     const std::size_t body_start = headers_end + 4;
     const std::size_t received_body_bytes = request.size() - body_start;
-    const std::string body = request.substr(body_start, received_body_bytes);
 
+    const std::size_t body_bytes_to_use =
+        std::min(received_body_bytes, expected_body_size);
+
+    std::string body = request.substr(body_start, body_bytes_to_use);
+
+    while (body.size() < expected_body_size) {
+
+    std::size_t remaining = expected_body_size - body.size();
+    std::size_t receive_capacity = std::min(remaining, sizeof(chunk));
+
+       ssize_t more_bytes =  recv(
+            client_fd, 
+            chunk, 
+            receive_capacity, 
+            0
+        );
+
+        if (more_bytes == -1) {
+            perror("recv");
+            close(client_fd);
+            close(socket_fd);
+            return 1;
+        }
+        else if (more_bytes == 0) {
+            std::cout << "Client closed its sending side before "
+                         "completing the request.\n";
+            close(client_fd);
+            close(socket_fd);
+            return 0;
+        }
+
+        body.append(
+            chunk, 
+            static_cast<size_t>(more_bytes)
+        );
+
+        std::cout << "Body recv() returned " << more_bytes
+          << " bytes. Body accumulated: "
+          << body.size() << "/" << expected_body_size << '\n';
+
+    }    
+    
     std::cout << "Body: " << body << '\n';
 
     // 16. Send the response, accounting for partial sends.
