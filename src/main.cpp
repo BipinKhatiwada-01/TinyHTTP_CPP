@@ -6,6 +6,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <charconv>
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -259,25 +260,32 @@ int main() {
     }
 
     // 14. Convert Content-Length from a string to an integer.
-    int integer_content_length = 0;
+ constexpr std::size_t max_body_size = 1024 * 1024;
+
+    std::size_t parsed_content_length = 0;
 
     if (content_length_found) {
-        try {
-            integer_content_length = std::stoi(content_length_value);
-            expected_body_size = integer_content_length;
-        }
-        catch (const std::invalid_argument& error) {
-            std::cerr << "Invalid Content-Length: " << error.what() << '\n';
+
+        const char* first = content_length_value.data();
+        const char* last = first + content_length_value.size();
+
+        auto [ptr, ec] = std::from_chars(first, last, parsed_content_length);
+
+        if (ec != std::errc{} || ptr != last) {
+            std::cerr << "Invalid Content-Length.\n";
             close(client_fd);
             close(socket_fd);
             return 1;
         }
-        catch (const std::out_of_range& error) {
-            std::cerr << "Content-Length is out of range: " << error.what() << '\n';
+
+        if (parsed_content_length > max_body_size) {
+            std::cerr << "Request body exceeds maximum allowed size.\n";
             close(client_fd);
             close(socket_fd);
             return 1;
-        }   
+        }
+
+        expected_body_size = parsed_content_length;
     }
 
     std::cout << "Expected body size: " << expected_body_size << '\n';
