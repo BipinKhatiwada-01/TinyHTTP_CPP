@@ -257,12 +257,18 @@ int main() {
             return 1;
         }
     }
-
     for (const auto& header : headers) {
         if (header.first == "content-length") {
+
+            if (content_length_found) {
+                std::cerr << "Duplicate Content-Length header.\n";
+                close(client_fd);
+                close(socket_fd);
+                return 1;
+            }
+
             content_length_value = header.second;
             content_length_found = true;
-            break;
         }
     }
 
