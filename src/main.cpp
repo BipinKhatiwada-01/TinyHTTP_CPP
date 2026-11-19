@@ -1,8 +1,9 @@
 #include <algorithm>
+#include <cctype>
 #include <cstddef>
 #include <cstdio>
 #include <iostream>
-#include <stdexcept>
+#include <cctype>
 #include <string>
 #include <utility>
 #include <vector>
@@ -206,6 +207,12 @@ int main() {
         // Extract the header name.
         const std::string header_name = header_line.substr(0, colon_position);
 
+        std::string normalized_header_name = header_name;
+
+        for (char& ch : normalized_header_name) {
+            ch = std::tolower(static_cast<unsigned char>(ch));
+        }
+
         // Find the first non-space, non-tab character in the header value.
         const std::size_t value_start = header_line.find_first_not_of(
             " \t",
@@ -225,7 +232,7 @@ int main() {
         }
 
         // Store the header name and value as one pair.
-        headers.emplace_back(header_name, header_value);
+        headers.emplace_back(normalized_header_name, header_value);
 
         // Advance past this line's CRLF to the next header.
         current_header_start = header_line_end + 2;
@@ -245,14 +252,14 @@ int main() {
     std::size_t expected_body_size = 0;
 
     for (const auto& header : headers) {
-        if (header.first == "Transfer-Encoding") {
+        if (header.first == "transfer-encoding") {
             std::cout<<"Chunked Decoding not yet implemented\n";
             return 1;
         }
     }
 
     for (const auto& header : headers) {
-        if (header.first == "Content-Length") {
+        if (header.first == "content-length") {
             content_length_value = header.second;
             content_length_found = true;
             break;
